@@ -4,7 +4,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <fcntl.h>
-
+ 
 // 색상 정의 (ANSI Escape Codes)
 #define RESET   "\033[0m"
 #define BLACK   "\033[30m"
