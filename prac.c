@@ -23,7 +23,7 @@ struct Player {
     int frame, timer, max_frames;
     int attack_timer, hurt_timer, inv_timer;
     int ult_visual_timer; 
-    bool ult_used; // ★ 궁극기 사용 여부 플래그 추가
+    bool ult_used;
     bool isGrounded;
     SDL_RendererFlip flip;
     int ground_offset; 
@@ -72,7 +72,7 @@ void initStage(int stage) {
         monsters[2] = (struct Monster){1100, GROUND_Y - 140, 180, 180, true, false, M_IDLE, S_RED, 0, 0, 150, 0, 1.5f};
     } else if (stage == 3) {
         monsterCount = 1;
-        monsters[0] = (struct Monster){900, GROUND_Y - 340, 1000, 1000, true, true, M_IDLE, S_YELLOW, 0, 0, 400, 0, 1.0f};
+        monsters[0] = (struct Monster){900, GROUND_Y - 340, 1000, 1000, true, true, M_IDLE, S_YELLOW, 0, 0, 400, 0, 1.2f};
     }
     potion.active = false;
     bossBullet.active = false;
@@ -94,7 +94,7 @@ int main(int argc, char* argv[]) {
     IMG_Init(IMG_INIT_PNG);
     TTF_Init();
 
-    SDL_Window* win = SDL_CreateWindow("C-RPG: Ult Limited", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_W, SCREEN_H, 0);
+    SDL_Window* win = SDL_CreateWindow("C-RPG: Boss Combat Fixed", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_W, SCREEN_H, 0);
     SDL_Renderer* ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
 
     TTF_Font* font = TTF_OpenFont("font.ttf", 28);
@@ -125,7 +125,8 @@ int main(int argc, char* argv[]) {
                         player.attack_timer = 30; player.state = ATTACK; player.frame = 0;
                         for(int i=0; i<monsterCount; i++) {
                             if (monsters[i].alive && monsters[i].animState != M_DEAD) {
-                                float range = monsters[i].isBoss ? 400 : 220;
+                                // ★ 보스 공격 범위 축소 (400 -> 280)
+                                float range = monsters[i].isBoss ? 250 : 160;
                                 if (fabs((player.x + 90) - (monsters[i].x + monsters[i].size/2)) < range && 
                                     fabs((player.y + 100) - (monsters[i].y + monsters[i].size/2)) < 300) {
                                     monsters[i].hp -= player.atk;
@@ -135,10 +136,9 @@ int main(int argc, char* argv[]) {
                             }
                         }
                     }
-                    // 궁극기 (S) - 레벨 3이고 아직 사용하지 않았을 때만 가능
                     if (ev.key.keysym.sym == SDLK_s && player.lv == 3 && !player.ult_used && player.ult_visual_timer <= 0) {
                         player.ult_visual_timer = 40; 
-                        player.ult_used = true; // ★ 사용됨으로 표시
+                        player.ult_used = true;
                         for(int i=0; i<monsterCount; i++) {
                             if (monsters[i].alive && monsters[i].animState != M_DEAD) {
                                 monsters[i].hp -= 250; 
@@ -189,7 +189,9 @@ int main(int argc, char* argv[]) {
                     if (monsters[i].hurt_timer <= 0) monsters[i].animState = M_IDLE;
                 } else {
                     float dist = fabs((player.x + 90) - (monsters[i].x + monsters[i].size/2));
-                    float stopDist = monsters[i].isBoss ? 350.0f : 110.0f;
+                    // ★ 보스 추격 정지 거리 축소 (350 -> 180). 더 가까이 다가옵니다.
+                    float stopDist = monsters[i].isBoss ? 150.0f : 110.0f;
+                    
                     if (dist > stopDist && monsters[i].animState != M_ATTACK) {
                         if (monsters[i].x < player.x) monsters[i].x += monsters[i].speed;
                         else if (monsters[i].x > player.x) monsters[i].x -= monsters[i].speed;
@@ -202,7 +204,8 @@ int main(int argc, char* argv[]) {
                         if (monsters[i].animState == M_ATTACK && monsters[i].frame == 0) monsters[i].animState = M_IDLE;
                         monsters[i].timer = 0;
                     }
-                    int collX = monsters[i].isBoss ? 200 : 100;
+                    // ★ 보스 몸체 접촉 피격 판정 축소 (200 -> 150)
+                    int collX = monsters[i].isBoss ? 150 : 110;
                     if (player.inv_timer <= 0 && dist < collX && fabs((player.y + 100) - (monsters[i].y + monsters[i].size/2)) < 200) {
                         player.hp -= 15; player.hurt_timer = 25; player.inv_timer = 60;
                         player.x += (player.x < monsters[i].x) ? -100 : 100;
@@ -243,7 +246,6 @@ int main(int argc, char* argv[]) {
             if (player.ult_visual_timer > 0) player.ult_visual_timer--; 
         }
 
-        // --- 렌더링 ---
         SDL_RenderClear(ren);
         SDL_Rect bgRect = {0, 0, SCREEN_W, SCREEN_H};
         SDL_RenderCopy(ren, (currentStage == 1 ? bgTex1 : (currentStage == 2 ? bgTex2 : bgTexBoss)), NULL, &bgRect);
@@ -253,7 +255,6 @@ int main(int argc, char* argv[]) {
             drawText(ren, bigFont, (gameState == STATE_VICTORY) ? "VICTORY!" : "GAME OVER", SCREEN_W/2 - 200, SCREEN_H/2 - 100, col);
             drawText(ren, font, "Press 'R' to Restart", SCREEN_W/2 - 120, SCREEN_H/2 + 50, (SDL_Color){255,255,255});
         } else {
-            // 몬스터 및 아이템 렌더링 (동일)
             if (potion.active) { SDL_Rect iR = {(int)potion.x, (int)potion.y, 60, 60}; SDL_RenderCopy(ren, iTex, NULL, &iR); }
             for(int i=0; i<monsterCount; i++) {
                 if (monsters[i].alive) {
@@ -284,12 +285,8 @@ int main(int argc, char* argv[]) {
                 SDL_RenderFillRect(ren, NULL); 
             }
 
-            // UI 렌더링
             char info[128]; sprintf(info, "LV %d  EXP %d/2  STAGE %d", player.lv, player.exp, currentStage);
             drawText(ren, font, info, 40, 20, (SDL_Color){255, 255, 0});
-            
-            // ★ ULTIMATE READY 텍스트 위치를 480으로 이동 (기존 350)
-            // 아직 사용하지 않았을 때만 표시
             if (player.lv == 3 && !player.ult_used) drawText(ren, font, "ULTIMATE READY (S)", 480, 20, (SDL_Color){0, 255, 255}); 
             
             sprintf(info, "HP %d / %d", player.hp > 0 ? player.hp : 0, player.max_hp);
@@ -305,12 +302,6 @@ int main(int argc, char* argv[]) {
         SDL_RenderPresent(ren);
         SDL_Delay(16);
     }
- 
-    TTF_CloseFont(font); TTF_CloseFont(bigFont);
-    SDL_DestroyTexture(pTex); SDL_DestroyTexture(mTex); 
-    SDL_DestroyTexture(bgTex1); SDL_DestroyTexture(bgTex2); SDL_DestroyTexture(bgTexBoss);
-    SDL_DestroyTexture(iTex);
-    SDL_DestroyRenderer(ren); SDL_DestroyWindow(win);
-    TTF_Quit(); IMG_Quit(); SDL_Quit();
+  
     return 0;
 }
